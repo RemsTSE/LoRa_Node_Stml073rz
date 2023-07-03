@@ -1,5 +1,8 @@
 # LoRa_Node_Stml073rz Scheduling
 
+Python simulation tool : Scheduling_test.ipynb
+C implementation : scheduler.h
+
 Problem Statement:
 
 The problem at hand is to schedule transmissions in a wireless network in a way that minimizes interference and maximizes network throughput. The network is represented as a graph, where nodes represent devices and edges represent connections between devices. Each edge is associated with a spreading factor (SF), which determines the duration of a transmission along that edge. The challenge is to schedule the transmissions in such a way that no two transmissions involving the same node overlap in time, and no two transmissions that could interfere with each other are scheduled at the same time.
