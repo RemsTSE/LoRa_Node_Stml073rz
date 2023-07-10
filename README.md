@@ -33,5 +33,7 @@ We are using the STM32CubeIDE framework, aswell as the Stm32L073RZ board equippe
 # Project status
 
 Currently the scheduling functions are implemented according to the method described above and simulated in the .ipynb file. They have been debugged but yet to be tested.
+
 The implementation of an optimization function for the merged schedules is in progress.
+
 Currently the focus is on the payload/packet formatting for the exchange of efficiency scores and schedules, a beginning of implementation can be found in "payload.c", the problematic is to optimize the packet size, and the exchange protocol.
