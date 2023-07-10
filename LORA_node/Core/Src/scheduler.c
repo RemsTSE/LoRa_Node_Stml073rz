@@ -507,3 +507,62 @@ void merge_schedules(ScheduledTransmission *primary_scheduled_transmissions, int
     }
 }
 
+
+double calculate_efficiency_score(ScheduledTransmission *scheduled_transmissions, int num_scheduled_transmissions) {
+    // Count the total number of time slots used
+    int total_time_slots_used = 0;
+
+    // Count the total data transmitted
+    int total_data_transmitted = 0;
+
+    // Determine the maximum time slot used for calculating utilization
+    int max_time_slot = 0;
+
+    // Keep track of total channels used
+    int total_channels_used = 0;
+    int channel_counter[MAX_CHANNELS] = {0};
+
+    // Iterate through each scheduled transmission
+    for (int i = 0; i < num_scheduled_transmissions; i++) {
+        ScheduledTransmission transmission = scheduled_transmissions[i];
+
+        // Count the data transmitted in this transmission
+        int spreading_factor = transmission.transmission.spreading_factor;
+        total_data_transmitted += (int)pow(2, (spreading_factor - 7));
+
+        // Count the time slots used for this transmission
+        int start_time_slot = transmission.time_slot;
+        int duration = (int)pow(2, (spreading_factor - 7));
+        total_time_slots_used += duration;
+
+        // Update the maximum time slot used
+        if (start_time_slot + duration > max_time_slot) {
+            max_time_slot = start_time_slot + duration;
+        }
+
+        // Count channels
+        int channel_index = transmission.channel_index;
+        if (channel_counter[channel_index] == 0) {
+            total_channels_used++;
+            channel_counter[channel_index] = 1;
+        }
+    }
+
+    // Calculate the total number of timeslots available
+    int total_time_slots_available = max_time_slot * total_channels_used;
+
+    // Calculate utilization (percentage of timeslots used)
+    double utilization = total_time_slots_available > 0 ? (double)total_time_slots_used / total_time_slots_available : 0;
+
+    // Calculate throughput (total data transmitted per time slot)
+    double throughput = total_time_slots_used > 0 ? (double)total_data_transmitted / total_time_slots_used : 0;
+
+    // Calculate the efficiency score based on utilization and throughput
+    double efficiency_score = 0.5 * utilization + 0.5 * throughput;
+
+    return efficiency_score;
+}
+
+
+
+
