@@ -79,3 +79,8 @@ void fragment_payload(unsigned char* payload, int payload_size, unsigned char pa
         }
     }
 }
+
+void free_fragments(PayloadFragment** fragments) {
+    free(*fragments);
+    *fragments = NULL;
+}

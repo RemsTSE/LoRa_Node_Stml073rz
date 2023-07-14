@@ -13,10 +13,12 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
+#include <stdint.h>
 #define MAX_TRANSMISSIONS 10
 #define MAX_CHANNELS 5
 #define MAX_SLOTS 20
 #define MAX_NODES 100
+#define EFFICIENCY_SCORE_PACKET_TYPE 0x01 // arbitrary packet type for efficiency score
 
 // Transmission data structure
 typedef struct {
@@ -31,6 +33,9 @@ typedef struct {
     int time_slot;
     Transmission transmission;
 } ScheduledTransmission;
+
+
+
 
 typedef struct {
     int time_slot_index;
@@ -70,7 +75,7 @@ void merge_schedules(ScheduledTransmission *primary_scheduled_transmissions, int
                      ScheduledTransmission *secondary_scheduled_transmissions, int num_secondary_scheduled_transmissions);
 
 
-
+double calculate_efficiency_score(ScheduledTransmission *scheduled_transmissions, int num_scheduled_transmissions);
 
 
 

@@ -27,6 +27,9 @@
 /* USER CODE BEGIN Includes */
 #include "LoRa.h"
 #include "routing_table.h"
+#include "scheduler.h"
+#include "payload.h"
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -56,6 +59,8 @@ LoRa myLoRa;
 uint8_t read_data[128];
 uint8_t send_data[128];
 int			RSSI;
+Transmission transmissions[MAX_TRANSMISSIONS];
+Schedule my_schedule;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -134,8 +139,124 @@ int main(void)
   	LoRa_startReceiving(&myLoRa);
   	//---------------------------------------------------------------
 
-  	Neighbor* rt = NULL ;
-  	rt = create_example_routing_table(rt);
+	int num_channels = 3;
+	routing_entry_t entries[5];
+	entries[0].dest_node_id = 1;
+	entries[0].dominant_dest = true;
+	entries[0].next_hop_id = 6;
+	entries[0].cost = 1;
+	entries[0].sf = 7;
+
+	entries[1].dest_node_id = 3;
+	entries[1].dominant_dest = false;
+	entries[1].next_hop_id = 4;
+	entries[1].cost = 2;
+	entries[1].sf = 8;
+
+	entries[2].dest_node_id = 2;
+	entries[2].dominant_dest = true;
+	entries[2].next_hop_id = 6;
+	entries[2].cost = 3;
+	entries[2].sf = 9;
+
+	entries[3].dest_node_id = 4;
+	entries[3].dominant_dest = false;
+	entries[3].next_hop_id = 1;
+	entries[3].cost = 4;
+	entries[3].sf = 10;
+
+	entries[4].dest_node_id = 5;
+	entries[4].dominant_dest = true;
+	entries[4].next_hop_id = 1;
+	entries[4].cost = 5;
+	entries[4].sf = 11;
+
+	routing_table_t routing_table;
+	routing_table.current_node_id = 6;
+	routing_table.num_entries = 5;
+	memcpy(routing_table.entries, entries, 5 * sizeof(routing_entry_t));
+
+	// Create the list of transmissions from the routing table
+	int num_transmissions;
+	Transmission *transmissions = create_transmissions_from_routing_table(
+			&routing_table, &num_transmissions);
+
+	// Create the channel list
+	int* known_dominants = NULL;
+	int num_known_dominant_nodes = 0;
+	Channel **channel_list = (Channel **)malloc(num_channels * sizeof(Channel *));
+	for(int i = 0; i < num_channels; i++) {
+	    channel_list[i] = (Channel *)malloc(sizeof(Channel));
+	}
+	known_dominants=get_known_dominant_nodes(&routing_table, &num_known_dominant_nodes);
+	// Initialization code for channel_list here (or via separate function) ...
+	create_channels_list(transmissions, num_transmissions,
+	 routing_table.current_node_id, known_dominants, num_known_dominant_nodes,
+	 channel_list, &num_channels);
+	// Call the scheduling function
+	// Initialize scheduled_transmissions
+	ScheduledTransmission *scheduled_transmissions = (ScheduledTransmission *)malloc(sizeof(ScheduledTransmission));
+
+	int num_scheduled_transmissions;
+	schedule_transmissions(*channel_list, num_channels, &scheduled_transmissions,
+			&num_scheduled_transmissions);
+
+	// Output the results
+	printf("Scheduled Transmissions:\n");
+	for (int i = 0; i < num_scheduled_transmissions; i++) {
+		ScheduledTransmission st = scheduled_transmissions[i];
+		printf(
+				"Channel: %d, Time Slot: %d, Source: %d, Destination: %d, Spreading Factor: %d\n",
+				st.channel_index, st.time_slot, st.transmission.source,
+				st.transmission.destination, st.transmission.spreading_factor);
+	}
+
+	// Calculate and print the efficiency score
+	double efficiency_score = calculate_efficiency_score(
+			scheduled_transmissions, num_scheduled_transmissions);
+	//printf("Efficiency Score:", efficiency_score);
+
+	// Create efficiency score payload
+	uint8_t *efficiency_score_payload = create_efficiency_score_payload(efficiency_score);
+	if(efficiency_score_payload == NULL) {
+	    printf("Failed to create efficiency score payload!\n");
+	    // handle error...
+	} else {
+	    printf("Efficiency score payload created successfully.\n");
+	    // use payload...
+	    free(efficiency_score_payload); // remember to free the allocated memory when you are done
+	}
+
+	// Create a single scheduled transmission payload
+	unsigned char single_payload[sizeof(ScheduledTransmissionPayload)];
+	create_scheduled_transmission_payload(&scheduled_transmissions[0], single_payload);
+	printf("Single transmission payload created successfully.\n");
+	// use single_payload...
+
+	// Create multiple scheduled transmissions payload
+	unsigned char multiple_payload[num_scheduled_transmissions * sizeof(ScheduledTransmissionPayload)];
+	create_scheduled_transmissions_payload(scheduled_transmissions, num_scheduled_transmissions, multiple_payload);
+	printf("Multiple transmissions payload created successfully.\n");
+	// use multiple_payload...
+
+	// Fragment a payload
+	PayloadFragment *fragments;
+	int num_fragments;
+	fragment_payload(multiple_payload, sizeof(multiple_payload), SCHEDULED_TRANSMISSIONS_PACKET_TYPE, &fragments, &num_fragments);
+	if(fragments == NULL) {
+	    printf("Failed to fragment payload!\n");
+	    // handle error...
+	} else {
+	    printf("Payload was successfully fragmented into %d fragments.\n", num_fragments);
+	    // use fragments...
+	    free(fragments); // remember to free the allocated memory when you are done
+	}
+
+
+
+	// Clean up
+	free(transmissions);
+	free(scheduled_transmissions);
   	/* USER CODE END 2 */
 
     /* Infinite loop */
