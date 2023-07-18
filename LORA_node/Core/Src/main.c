@@ -60,7 +60,7 @@ uint8_t read_data[128];
 uint8_t send_data[128];
 int			RSSI;
 Transmission transmissions[MAX_TRANSMISSIONS];
-Schedule my_schedule;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/

@@ -1,4 +1,5 @@
-
+#ifndef LORA_H
+#define LORA_H
 #include "main.h"
 
 #define TRANSMIT_TIMEOUT	2000
@@ -120,3 +121,6 @@ void LoRa_receive_IT(LoRa* _LoRa, uint8_t* data, uint8_t length);
 int LoRa_getRSSI(LoRa* _LoRa);
 
 uint16_t LoRa_init(LoRa* _LoRa);
+
+
+#endif

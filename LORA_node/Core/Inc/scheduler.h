@@ -37,23 +37,12 @@ typedef struct {
 
 
 
-typedef struct {
-    int time_slot_index;
-    Transmission transmission;
-} TimeSlot;
 
 typedef struct {
     Transmission ** transmissions;
     int size;
 } Channel;
 
-
-// Schedule data structure
-
-typedef struct {
-    Channel *channels;
-    int num_channels;
-} Schedule;
 
 // Function prototypes
 void add_transmission(Transmission **transmissions, int *num_transmissions, char source, char destination, int spreading_factor);
@@ -67,6 +56,7 @@ bool is_id_in_known_dominants(int *known_dominants, int num_known_dominants, int
 int get_index_in_known_dominants(int known_dominants[], int num_known_dominants, int id);
 void cleanup_transmissions(Transmission **transmissions, int *num_transmissions);
 void cleanup_channels(Channel **channels_list, int num_channels);
+int* get_known_dominant_nodes(routing_table_t* table, int* num_known_dominant_nodes);
 void cleanup_known_dominant_nodes(int **known_dominant_nodes);
 void schedule_transmissions(Channel *channels_list, int num_channels, ScheduledTransmission **scheduled_transmissions, int *num_scheduled_transmissions);
 //void cleanup_schedule(ScheduleEntry **schedule, int num_channels);
