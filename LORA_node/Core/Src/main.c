@@ -251,9 +251,9 @@ int main(void)
 	    // use fragments...
 	    free(fragments); // remember to free the allocated memory when you are done
 	}
+	double scores[num_known_dominant_nodes];
 
-
-
+	multicast_and_receive_efficiency_scores(&myLoRa, &routing_table, efficiency_score, known_dominants, num_known_dominant_nodes, scores );
 	// Clean up
 	free(transmissions);
 	free(scheduled_transmissions);
@@ -264,19 +264,7 @@ int main(void)
     while (1)
     {
     	/* USER CODE BEGIN WHILE */
-  		// SENDING DATA - - - - - - - - - - - - - - - - - - - - - - - - -
-  		send_data[0] = 0x3B; // MY ADDRESS
-  		for(int i=0; i<26; i++)
-  			send_data[i+1] = 48+i;
-  		LoRa_transmit(&myLoRa, send_data, 128, 500);
-  		HAL_Delay(10);
-  		printf("message sent");
 
-  		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_0);
-  		HAL_Delay(1500);  // Delay to keep the LED on for a while
-  		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_0);
-  		// RECEIVING DATA - - - - - - - - - - - - - - - - - - - - - - - -
-  		LoRa_receive(&myLoRa, read_data, 128);
 
       /* USER CODE END WHILE */
 

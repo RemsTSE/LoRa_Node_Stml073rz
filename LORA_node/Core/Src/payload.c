@@ -197,6 +197,7 @@ void multicast_efficiency_score_packet(LoRa* lora, routing_table_t* routing_tabl
             // Transmit each fragment
             for (int j = 0; j < num_fragments; j++) {
                 // Transmit the fragment using your LoRa API
+            	lora->spredingFactor = routing_table->entries[i].sf;
                 uint8_t transmit_status = transmit_payload(lora, &fragments[j]);
                 if (transmit_status != LORA_OK) {
                     // Handle failed transmission
@@ -277,6 +278,7 @@ void relay_efficiency_score_packets(LoRa* lora, routing_table_t* routing_table) 
             for (int i = 0; i < routing_table->num_entries; i++) {
                 if (routing_table->entries[i].dest_node_id == final_destination_id) {
                     // We found the routing entry. Now, relay the packet to the next hop.
+                	lora->spredingFactor = routing_table->entries[i].sf;
                     transmit_payload(lora, &received_fragment);
                     break;
                 }
@@ -286,9 +288,9 @@ void relay_efficiency_score_packets(LoRa* lora, routing_table_t* routing_table) 
 }
 
 void parse_payload_header(uint8_t* payload, int* source_id, int* destination_id, int* final_destination_id) {
-    // Convert bytes to integers assuming little-endian byte order.
 
-    // Note: This assumes the header of the payload is organized as follows:
+
+
     // | Source ID (4 bytes) | Destination ID (4 bytes) | Final Destination ID (4 bytes) |
 
     // Extract the source id
@@ -302,7 +304,163 @@ void parse_payload_header(uint8_t* payload, int* source_id, int* destination_id,
 }
 
 
+int is_smallest_id(int current_id, int* ids, int num_ids) {
+    for (int i = 0; i < num_ids; i++) {
+        if (ids[i] < current_id) {
+            return 0;  // False: there is a smaller id
+        }
+    }
+    return 1;  // True: current_id is the smallest
+}
+
+int get_index_of_id(int id, int* ids, int num_ids) {
+    for (int i = 0; i < num_ids; i++) {
+        if (ids[i] == id) {
+            return i;
+        }
+    }
+    return -1;  // ID not found
+}
+
+int all_scores_received(int* scores_received, int num_scores) {
+    for (int i = 0; i < num_scores; i++) {
+        if (scores_received[i] == -1) {
+            return 0;  // False: not all scores received
+        }
+    }
+    return 1;  // True: all scores received
+}
+
+
+int is_efficiency_score_packet(uint8_t* packet) {
+    return packet[3] == EFFICIENCY_SCORE_PACKET_TYPE;
+}
+
+
+void parse_efficiency_score_packet(uint8_t* packet, int* source_id, double* score) {
+
+
+    // Parse source id stored as 4 bytes (int) in the packet
+    memcpy(source_id, &packet[0], 4);
+
+    // Parse score  stored as 8 bytes (double) in the packet
+    memcpy(score, &packet[4], 8);
+}
+
+
+int receive_packet(LoRa* lora, uint8_t* packet) {
+    // Start receiving
+    LoRa_startReceiving(lora);
+
+    // Check if a packet has been received
+    uint8_t irqFlags = LoRa_read(lora, RegIrqFlags);
+    if (irqFlags & 0x40) { // 0x40 = RX_DONE flag
+        // Clear RX_DONE flag
+        LoRa_write(lora, RegIrqFlags, irqFlags | 0x40);
+
+        // Read received packet
+        uint8_t length = LoRa_read(lora, RegRxNbBytes);
+        if (length > 0) {
+            uint8_t addr = LoRa_read(lora, RegFiFoRxCurrentAddr);
+            LoRa_readReg(lora, &addr, 1, packet, length);
+        }
+
+        return length;
+    }
+
+    return 0; // No packet received
+}
+
+
+void multicast_and_receive_efficiency_scores(LoRa* lora, routing_table_t* routing_table, double my_score,int* known_dominants, int num_known_dominants,double scores[num_known_dominants]) {
+
+
+    // Score information array
+    int scores_received[num_known_dominants];
+
+
+    // Initialize to -1 (indicates score not received yet)
+    for (int i = 0; i < num_known_dominants; i++) {
+        scores_received[i] = -1;
+    }
+
+    // If this node has the smallest id among dominant nodes, it starts the transmission
+    if (is_smallest_id(routing_table->current_node_id, known_dominants, num_known_dominants)) {
+        multicast_efficiency_score_packet(lora, routing_table, my_score);
+
+        // Update own score received
+        scores_received[get_index_of_id(routing_table->current_node_id, known_dominants, num_known_dominants)] = 1;
+        scores[get_index_of_id(routing_table->current_node_id, known_dominants, num_known_dominants)] = my_score;
+    }
+
+    // Receiving loop
+    while (!all_scores_received(scores_received, num_known_dominants)) {
+        // Listen for efficiency score packets
+        uint8_t packet[MAX_PACKET_SIZE];
+        int packet_length = receive_packet(lora, packet);
+
+        // If a packet is received and it's an efficiency score packet
+        if (packet_length > 0 && is_efficiency_score_packet(packet)) {
+            // Parse packet and get efficiency score and source ID
+            int source_id;
+            double score;
+            parse_efficiency_score_packet(packet, &source_id, &score);
+
+            // Update scores_received and scores arrays
+            scores_received[get_index_of_id(source_id, known_dominants, num_known_dominants)] = 1;
+            scores[get_index_of_id(source_id, known_dominants, num_known_dominants)] = score;
+
+            // If the current node has the smallest id among the dominant nodes that have not transmitted yet
+            if (is_smallest_id(routing_table->current_node_id, known_dominants, num_known_dominants)) {
+                // Multicast its efficiency score
+                multicast_efficiency_score_packet(lora,routing_table, my_score);
+
+                // Update own score received
+                scores_received[get_index_of_id(routing_table->current_node_id, known_dominants, num_known_dominants)] = 1;
+                scores[get_index_of_id(routing_table->current_node_id, known_dominants, num_known_dominants)] = my_score;
+            }
+        }
+
+        // Handle errors and timeouts here...
+    }
+
+}
+
+
+
 void free_fragments(PayloadFragment** fragments) {
     free(*fragments);
     *fragments = NULL;
 }
+
+
+void relay_retransmission_request_packets(LoRa* lora, routing_table_t* routing_table) {
+    // Buffer for received data
+    unsigned char received_data[SIZE_OF_PAYLOAD_FRAGMENT];
+    uint8_t receive_status = LoRa_receive(lora, received_data, SIZE_OF_PAYLOAD_FRAGMENT);
+
+    // If data is successfully received
+    if(receive_status == LORA_OK) {
+        // Parse the received data into a payload fragment
+        PayloadFragment received_fragment;
+        memcpy(&received_fragment, received_data, SIZE_OF_PAYLOAD_FRAGMENT);
+
+        // Parse the payload to get the source ID, destination ID, and packet ID
+        int source_id, destination_id, final_destination_id;
+        parse_payload_header(received_fragment.data, &source_id, &destination_id, &final_destination_id);
+
+        // Check if the current node is the next hop for retransmission request
+        if (destination_id == routing_table->current_node_id) {
+            // Find the routing entry for the final destination
+            for (int i = 0; i < routing_table->num_entries; i++) {
+                if (routing_table->entries[i].dest_node_id == final_destination_id) {
+                    // We found the routing entry. Now, relay the packet to the next hop.
+                    lora->spredingFactor = routing_table->entries[i].sf;
+                    transmit_payload(lora, &received_fragment);
+                    break;
+                }
+            }
+        }
+    }
+}
+

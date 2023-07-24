@@ -8,6 +8,7 @@
 #ifndef INC_PAYLOAD_H_
 #define INC_PAYLOAD_H_
 #define MAX_PAYLOAD_SIZE 64
+#define MAX_PACKET_SIZE 64
 #define EFFICIENCY_SCORE_PACKET_TYPE 0x01
 #define SCHEDULED_TRANSMISSIONS_PACKET_TYPE 0x02
 #define RETRANSMISSION_REQUEST_PACKET_TYPE 0x03
@@ -50,6 +51,13 @@ uint8_t transmit_payload(LoRa* lora, PayloadFragment* fragment);
 void instruct_retransmission(LoRa* lora, int destination_id, int sequence_number);
 void relay_efficiency_score_packets(LoRa* _LoRa, routing_table_t* routing_table);
 void parse_payload_header(uint8_t* payload, int* source_id, int* destination_id, int* final_destination_id);
-
+int is_smallest_id(int current_id, int* ids, int num_ids);
+int get_index_of_id(int id, int* ids, int num_ids);
+int all_scores_received(int* scores_received, int num_scores);
+int is_efficiency_score_packet(uint8_t* packet);
+void parse_efficiency_score_packet(uint8_t* packet, int* source_id, double* score);
+int receive_packet(LoRa* lora, uint8_t* packet);
+void multicast_and_receive_efficiency_scores(LoRa* lora, routing_table_t* routing_table, double my_score, int* known_dominants, int num_known_dominants,double scores[num_known_dominants]);
+void relay_retransmission_request_packets(LoRa* lora, routing_table_t* routing_table);
 
 #endif /* INC_PAYLOAD_H_ */
