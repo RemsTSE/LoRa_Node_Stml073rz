@@ -15,13 +15,13 @@ Our approach to solving this problem is a distributed scheduling method with a m
 
 The steps of our method are as follows:
 
-Compute a dominating set of the network. Each node in the dominating set will be responsible for scheduling its own transmissions and the transmissions of its neighbors.
+Compute a dominating set of the network. Each node in the dominating set will be responsible for scheduling its own transmissions and the transmissions of its neighbors. 
 
-Each node in the dominating set creates a list of all possible transmissions involving itself and its neighbors. The list is sorted by spreading factor in descending order, and paired transmissions are placed next to each other.
+Each node in the dominating set creates a list of all possible transmissions involving itself and its neighbors. The list is sorted by spreading factor in descending order, and paired transmissions are placed next to each other. (DONE)
 
-Each node in the dominating set then creates a schedule for its transmissions. The schedule is organized into channels, with the first channel for transmissions involving the node itself, the second channel for transmissions involving no dominant nodes, and the remaining channels each dedicated to transmissions involving a known dominant node. It then calculates an efficiency score, based on the utilization and throughput of its channels and timeslots.
+Each node in the dominating set then creates a schedule for its transmissions. The schedule is organized into channels, with the first channel for transmissions involving the node itself, the second channel for transmissions involving no dominant nodes, and the remaining channels each dedicated to transmissions involving a known dominant node. It then calculates an efficiency score, based on the utilization and throughput of its channels and timeslots. (DONE)
 
-The dominant nodes share their efficiency score to other dominant nodes to compare, and the node with the higher score will be responsible for merging the schedules.
+The dominant nodes share their efficiency score to other dominant nodes to compare, and the node with the higher score will be responsible for merging the schedules. The sharing of efficiency scores is done with a "passing token" system, where the dominant nodes wait until they received the scores of nodes with smaller ids, then multicasts its score to the other nodes. (DONE)
 The schedules created by each node in the dominating set are then merged to create a global schedule for the network. The merging process involves merging the channels corresponding to the same dominant node, deleting duplicate transmissions, and resolving conflicts.
 
 After the global schedule is computed, the dominant nodes propagate specific schedules to neighboring nodes : only the scheduling information concerning each node.
@@ -37,3 +37,10 @@ Currently the scheduling functions are implemented according to the method descr
 The implementation of an optimization function for the merged schedules is in progress.
 
 Currently the focus is on the payload/packet formatting for the exchange of efficiency scores and schedules, a beginning of implementation can be found in "payload.c", the problematic is to optimize the packet size, and the exchange protocol.
+
+Efficiency score sharing (multicast, receiving, re-transmission, parsing etc...) is implemented, it now needs testing.
+All payload types (efficiency scores and schedules) are fragmented and formatted correctly with the correct headers before being sent. 
+The id format for a node can be modified, but will need to be fixed.
+
+24/07/2023 : The current task at hand is the testing of the multicast/re-transmission of efficiency scores, then we can start sending schedule packets.
+
