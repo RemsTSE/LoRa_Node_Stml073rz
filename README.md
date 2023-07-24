@@ -22,7 +22,7 @@ Each node in the dominating set creates a list of all possible transmissions inv
 Each node in the dominating set then creates a schedule for its transmissions. The schedule is organized into channels, with the first channel for transmissions involving the node itself, the second channel for transmissions involving no dominant nodes, and the remaining channels each dedicated to transmissions involving a known dominant node. It then calculates an efficiency score, based on the utilization and throughput of its channels and timeslots. (DONE)
 
 The dominant nodes share their efficiency score to other dominant nodes to compare, and the node with the higher score will be responsible for merging the schedules. The sharing of efficiency scores is done with a "passing token" system, where the dominant nodes wait until they received the scores of nodes with smaller ids, then multicasts its score to the other nodes. (DONE)
-The schedules created by each node in the dominating set are then merged to create a global schedule for the network. The merging process involves merging the channels corresponding to the same dominant node, deleting duplicate transmissions, and resolving conflicts.
+The schedules created by each node in the dominating set are then merged to create a global schedule for the network. The merging process involves merging the channels corresponding to the same dominant node, deleting duplicate transmissions, and resolving conflicts. (MERGING FUNCTION DONE)
 
 After the global schedule is computed, the dominant nodes propagate specific schedules to neighboring nodes : only the scheduling information concerning each node.
 
