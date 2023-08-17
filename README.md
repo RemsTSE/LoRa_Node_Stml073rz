@@ -2,7 +2,7 @@
 
 Python simulation tool : Scheduling_test.ipynb
 
-C implementation : mostly in scheduler.h scheduler.c
+C implementation : mostly in "scheduler" "routing_table" "payload"
 
 
 # Problem Statement:
@@ -43,4 +43,4 @@ All payload types (efficiency scores and schedules) are fragmented and formatted
 The id format for a node can be modified, but will need to be fixed.
 
 24/07/2023 : The current task at hand is the testing of the multicast/re-transmission of efficiency scores, then we can start sending schedule packets.
-
+16/08/2023 : Updated functions for schedule sharing, now testing with an example routing table, with 2 test nodes in the dominating set.
