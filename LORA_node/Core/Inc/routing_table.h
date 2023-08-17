@@ -31,6 +31,6 @@ void remove_entry(routing_table_t* table, int dest_node_id);
 routing_entry_t* get_entry(routing_table_t* table, int dest_node_id);
 void list_dominant_nodes(routing_table_t* table);
 void print_routing_table(routing_table_t* table);
-
+int get_spreading_factor_for_node(routing_table_t *routing_table, int node_id);
 
 #endif

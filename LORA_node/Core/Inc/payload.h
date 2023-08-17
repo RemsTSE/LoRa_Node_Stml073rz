@@ -13,7 +13,9 @@
 #define SCHEDULED_TRANSMISSIONS_PACKET_TYPE 0x02
 #define RETRANSMISSION_REQUEST_PACKET_TYPE 0x03
 #define SIZE_OF_PAYLOAD_FRAGMENT sizeof(PayloadFragment)
+#define MAX_FRAGMENTS 20
 #define HEADER_SIZE 3
+#define MAX_SCHEDULES 10
 
 #include "scheduler.h"
 #include "main.h"
@@ -59,5 +61,13 @@ void parse_efficiency_score_packet(uint8_t* packet, int* source_id, double* scor
 int receive_packet(LoRa* lora, uint8_t* packet);
 void multicast_and_receive_efficiency_scores(LoRa* lora, routing_table_t* routing_table, double my_score, int* known_dominants, int num_known_dominants,double scores[num_known_dominants]);
 void relay_retransmission_request_packets(LoRa* lora, routing_table_t* routing_table);
+void multicast_schedule_packet(LoRa* lora, routing_table_t* routing_table, ScheduledTransmissionPayload schedule);
+void receive_and_rebuild_schedule(LoRa *myLoRa, ScheduledTransmission *schedule, int num_transmissions);
+void relay_scheduled_transmissions(LoRa* lora, routing_table_t* routing_table,
+                                   ScheduledTransmission *current_schedule,
+                                   int *num_current_scheduled_transmissions, int num_known_dominants);
+void send_schedule_to_most_efficient_node(LoRa* lora, routing_table_t* routing_table, ScheduledTransmission* schedule, int num_transmissions, int* known_dominants, double scores[], int num_known_dominants);
+
+
 
 #endif /* INC_PAYLOAD_H_ */

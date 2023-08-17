@@ -34,10 +34,6 @@ typedef struct {
     Transmission transmission;
 } ScheduledTransmission;
 
-
-
-
-
 typedef struct {
     Transmission ** transmissions;
     int size;
@@ -63,8 +59,6 @@ void schedule_transmissions(Channel *channels_list, int num_channels, ScheduledT
 bool is_duplicate(ScheduledTransmission *primary_scheduled_transmissions, int num_primary_scheduled_transmissions, ScheduledTransmission transmission);
 void merge_schedules(ScheduledTransmission *primary_scheduled_transmissions, int *num_primary_scheduled_transmissions,
                      ScheduledTransmission *secondary_scheduled_transmissions, int num_secondary_scheduled_transmissions);
-
-
 double calculate_efficiency_score(ScheduledTransmission *scheduled_transmissions, int num_scheduled_transmissions);
 
 

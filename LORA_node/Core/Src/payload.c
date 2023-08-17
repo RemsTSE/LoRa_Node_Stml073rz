@@ -47,6 +47,18 @@ void create_scheduled_transmission_payload(ScheduledTransmission* transmission, 
     memcpy(payload, &payload_struct, sizeof(ScheduledTransmissionPayload));
 }
 
+void create_scheduled_transmission(ScheduledTransmission* transmission, unsigned char* payload) {
+    ScheduledTransmissionPayload payload_struct;
+    memcpy(&payload_struct, payload, sizeof(ScheduledTransmissionPayload));
+
+    transmission->transmission.source = payload_struct.source;
+    transmission->transmission.destination = payload_struct.final_destination;
+    transmission->transmission.spreading_factor = (uint8_t) payload_struct.spreading_factor;
+    transmission->channel_index = (uint8_t) payload_struct.channel_index;
+    transmission->time_slot = (uint16_t) payload_struct.time_slot;
+}
+
+
 void create_scheduled_transmissions_payload(ScheduledTransmission* transmissions, int num_transmissions, unsigned char* payload) {
     for (int i = 0; i < num_transmissions; i++) {
         create_scheduled_transmission_payload(&transmissions[i], &payload[i * sizeof(ScheduledTransmissionPayload)]);
@@ -135,18 +147,8 @@ void parse_scheduled_transmissions_payload(uint8_t* payload, int num_transmissio
     }
 }
 
-void create_scheduled_transmission(ScheduledTransmission* transmission, unsigned char* payload) {
-    ScheduledTransmissionPayload payload_struct;
-    memcpy(&payload_struct, payload, sizeof(ScheduledTransmissionPayload));
 
-    transmission->transmission.source = payload_struct.source;
-    transmission->transmission.destination = payload_struct.final_destination;
-    transmission->transmission.spreading_factor = (uint8_t) payload_struct.spreading_factor;
-    transmission->channel_index = (uint8_t) payload_struct.channel_index;
-    transmission->time_slot = (uint16_t) payload_struct.time_slot;
-}
 
-// rest of the functions remains the same as they do not deal with header or final destination
 
 
 
@@ -196,7 +198,7 @@ void multicast_efficiency_score_packet(LoRa* lora, routing_table_t* routing_tabl
 
             // Transmit each fragment
             for (int j = 0; j < num_fragments; j++) {
-                // Transmit the fragment using your LoRa API
+                // Transmit the fragment using the module, and the sf of each link
             	lora->spredingFactor = routing_table->entries[i].sf;
                 uint8_t transmit_status = transmit_payload(lora, &fragments[j]);
                 if (transmit_status != LORA_OK) {
@@ -208,7 +210,7 @@ void multicast_efficiency_score_packet(LoRa* lora, routing_table_t* routing_tabl
                 // If it's a 2-hop neighbour
                 if (routing_table->entries[i].next_hop_id != routing_table->entries[i].dest_node_id) {
                     // The next hop needs to retransmit the packet to the final destination
-                    // Note: This assumes you have some way to tell the next hop to do this
+
                     instruct_retransmission(lora, routing_table->entries[i].next_hop_id, fragments[j].sequence_number);
                 }
             }
@@ -421,7 +423,7 @@ void multicast_and_receive_efficiency_scores(LoRa* lora, routing_table_t* routin
             }
         }
 
-        // Handle errors and timeouts here...
+        // Error handling here
     }
 
 }
@@ -463,4 +465,152 @@ void relay_retransmission_request_packets(LoRa* lora, routing_table_t* routing_t
         }
     }
 }
+
+
+
+
+void receive_and_rebuild_schedule(LoRa *myLoRa, ScheduledTransmission *schedule, int num_transmissions) {
+    // Allocate an array for the fragments
+    PayloadFragment *fragments = malloc(MAX_FRAGMENTS * sizeof(PayloadFragment));
+    int num_fragments_received = 0;
+    uint8_t data[64];  // adjust size as needed
+
+    // Listen for fragments until the schedule is complete or a timeout occurs
+    while (num_fragments_received < num_transmissions) {
+        // Attempt to receive a packet
+        if (LoRa_receive(myLoRa, data, sizeof(data))) {
+            // Packet was received, treat it as a fragment
+            PayloadFragment fragment;
+            memcpy(&fragment, data, sizeof(PayloadFragment));  // assuming the packet data is a PayloadFragment
+
+            // Check the packet type
+            if (fragment.type == SCHEDULED_TRANSMISSIONS_PACKET_TYPE) {
+                // This is a schedule fragment, so insert it into the array
+                insert_received_fragment(fragments, MAX_FRAGMENTS, fragment);
+
+                num_fragments_received++;
+            }
+        }
+
+        // TODO: Add a timeout or other termination condition
+    }
+
+    // Rebuild the payload from the fragments
+    unsigned char *payload = malloc(sizeof(ScheduledTransmissionPayload) * num_transmissions);
+    rebuild_payload_from_fragments(payload, fragments, num_fragments_received);
+
+    // Parse the payload into a schedule
+    int source_id, destination_id, final_destination_id;
+    parse_scheduled_transmissions_payload(payload, num_transmissions, &source_id, &destination_id, &final_destination_id, schedule);
+
+    // Clean up
+    free(payload);
+    free(fragments);
+}
+
+
+void relay_scheduled_transmissions(LoRa* lora, routing_table_t* routing_table,
+                                   ScheduledTransmission *current_schedule,
+                                   int *num_current_scheduled_transmissions, int num_known_dominants) {
+
+    unsigned char received_data[SIZE_OF_PAYLOAD_FRAGMENT];
+    uint8_t receive_status = LoRa_receive(lora, received_data, SIZE_OF_PAYLOAD_FRAGMENT);
+
+    static PayloadFragment fragments[MAX_FRAGMENTS];
+    static int num_fragments_received = 0;
+
+    static ScheduledTransmission received_schedules[MAX_NODES][MAX_SCHEDULES];  // Assuming a maximum number of schedules and nodes
+    static int num_received_schedules_from_nodes[MAX_NODES] = {0};
+    static int total_received_schedules = 0;
+
+    if(receive_status == LORA_OK) {
+        PayloadFragment received_fragment;
+        memcpy(&received_fragment, received_data, SIZE_OF_PAYLOAD_FRAGMENT);
+
+        int source_id, destination_id, final_destination_id;
+        parse_payload_header(received_fragment.data, &source_id, &destination_id, &final_destination_id);
+
+        if (final_destination_id != routing_table->current_node_id) {
+            for (int i = 0; i < routing_table->num_entries; i++) {
+                if (routing_table->entries[i].dest_node_id == final_destination_id) {
+                    lora->spredingFactor = routing_table->entries[i].sf;
+                    transmit_payload(lora, &received_fragment);
+                    break;
+                }
+            }
+        } else {
+            if (num_fragments_received < MAX_FRAGMENTS) {
+                memcpy(&fragments[num_fragments_received], &received_fragment, sizeof(PayloadFragment));
+                num_fragments_received++;
+            }
+
+            if (num_fragments_received >= *num_current_scheduled_transmissions) {
+                ScheduledTransmission received_schedule[*num_current_scheduled_transmissions];
+                receive_and_rebuild_schedule(lora, received_schedule, *num_current_scheduled_transmissions);
+
+                // Store the received schedule for later merging
+                memcpy(received_schedules[source_id], received_schedule, *num_current_scheduled_transmissions * sizeof(ScheduledTransmission));
+                num_received_schedules_from_nodes[source_id]++;
+                total_received_schedules++;
+
+                if (total_received_schedules == num_known_dominants) {
+                    // Merging all received schedules with the current schedule
+                    for (int i = 0; i < num_known_dominants; i++) {
+                        merge_schedules(current_schedule, num_current_scheduled_transmissions, received_schedules[i], num_received_schedules_from_nodes[i]);
+                    }
+
+                    // Transmitting the merged schedule back to the sender using the function with the header
+                    unsigned char merged_schedule_payload[HEADER_SIZE + *num_current_scheduled_transmissions * sizeof(ScheduledTransmissionPayload)];
+
+                    create_scheduled_transmissions_payload_with_header(routing_table->current_node_id, -1, final_destination_id, current_schedule, *num_current_scheduled_transmissions, merged_schedule_payload);
+
+                    for (int i = 0; i < num_known_dominants; i++) {
+                        transmit_payload(lora, (PayloadFragment *)merged_schedule_payload);  // Assuming the broadcast functionality if not one by one to dominants
+                    }
+
+                    // Reset for next cycle
+                    total_received_schedules = 0;
+                    memset(num_received_schedules_from_nodes, 0, sizeof(num_received_schedules_from_nodes));
+                }
+
+                num_fragments_received = 0;  // Reset fragment counter for next schedule
+            }
+        }
+    }
+}
+
+
+
+
+
+void send_schedule_to_most_efficient_node(LoRa* lora, routing_table_t* routing_table, ScheduledTransmission* schedule, int num_transmissions, int* known_dominants, double scores[], int num_known_dominants) {
+    // Get the most efficient node based on the score
+    int best_index = 0;
+    for (int i = 1; i < num_known_dominants; i++) {
+        if (scores[i] > scores[best_index]) {
+            best_index = i;
+        }
+    }
+    int best_node_id = known_dominants[best_index];
+
+    // Create a payload for sending the schedule
+    unsigned char *payload = NULL;
+    create_scheduled_transmissions_payload_with_header(routing_table->current_node_id, best_node_id, best_node_id, schedule, num_transmissions, payload);
+
+    // Fragment the payload
+    PayloadFragment* fragments;
+    int num_fragments;
+    fragment_payload(payload, sizeof(ScheduledTransmissionPayload) * num_transmissions + HEADER_SIZE + 1, SCHEDULED_TRANSMISSIONS_PACKET_TYPE, &fragments, &num_fragments);
+
+    // Transmit each fragment
+    for (int j = 0; j < num_fragments; j++) {
+        lora->spredingFactor = get_spreading_factor_for_node(routing_table, best_node_id);
+        transmit_payload(lora, &fragments[j]);
+    }
+
+    // Clean up
+    free(payload);
+    free(fragments);
+}
+
 

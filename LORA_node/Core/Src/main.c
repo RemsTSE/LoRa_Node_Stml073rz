@@ -140,9 +140,10 @@ int main(void)
   	//---------------------------------------------------------------
 
 	int num_channels = 3;
+
 	routing_entry_t entries[5];
 	entries[0].dest_node_id = 1;
-	entries[0].dominant_dest = true;
+	entries[0].dominant_dest = false;
 	entries[0].next_hop_id = 6;
 	entries[0].cost = 1;
 	entries[0].sf = 7;
@@ -154,7 +155,7 @@ int main(void)
 	entries[1].sf = 8;
 
 	entries[2].dest_node_id = 2;
-	entries[2].dominant_dest = true;
+	entries[2].dominant_dest = false;
 	entries[2].next_hop_id = 6;
 	entries[2].cost = 3;
 	entries[2].sf = 9;
@@ -171,10 +172,56 @@ int main(void)
 	entries[4].cost = 5;
 	entries[4].sf = 11;
 
+	/*
+	routing_entry_t entries[5];
+	entries[0].dest_node_id = 1;
+	entries[0].dominant_dest = false;
+	entries[0].next_hop_id = 5; // Assuming 6 can reach 1 through 5
+	entries[0].cost = 2; // Incrementing cost by 1, as it now takes an extra hop
+	entries[0].sf = 7;
+
+	entries[1].dest_node_id = 3;
+	entries[1].dominant_dest = false;
+	entries[1].next_hop_id = 5; // Assuming 6 can reach 3 through 5
+	entries[1].cost = 3; // Incrementing cost by 1
+	entries[1].sf = 8;
+
+	entries[2].dest_node_id = 2;
+	entries[2].dominant_dest = false;
+	entries[2].next_hop_id = 5; // Assuming 6 can reach 2 through 5
+	entries[2].cost = 4; // Incrementing cost by 1
+	entries[2].sf = 9;
+
+	entries[3].dest_node_id = 4;
+	entries[3].dominant_dest = false;
+	entries[3].next_hop_id = 5; // Assuming 6 can reach 4 through 5
+	entries[3].cost = 5; // Incrementing cost by 1
+	entries[3].sf = 10;
+
+	entries[4].dest_node_id = 5;
+	entries[4].dominant_dest = true;
+	entries[4].next_hop_id = 5; // Direct route to 5
+	entries[4].cost = 1; // Assuming direct connection
+	entries[4].sf = 11;
+	*/
+
+
 	routing_table_t routing_table;
 	routing_table.current_node_id = 6;
 	routing_table.num_entries = 5;
 	memcpy(routing_table.entries, entries, 5 * sizeof(routing_entry_t));
+
+
+	bool is_dominant_node = false;
+	  for (int i = 0; i < routing_table.num_entries; i++) {
+	    if (routing_table.entries[i].dest_node_id == routing_table.current_node_id
+	        && routing_table.entries[i].dominant_dest) {
+	        is_dominant_node = true;
+	        break;
+	    }
+	  }
+
+
 
 	// Create the list of transmissions from the routing table
 	int num_transmissions;
@@ -201,32 +248,15 @@ int main(void)
 	schedule_transmissions(*channel_list, num_channels, &scheduled_transmissions,
 			&num_scheduled_transmissions);
 
-	// Output the results
-	printf("Scheduled Transmissions:\n");
-	for (int i = 0; i < num_scheduled_transmissions; i++) {
-		ScheduledTransmission st = scheduled_transmissions[i];
-		printf(
-				"Channel: %d, Time Slot: %d, Source: %d, Destination: %d, Spreading Factor: %d\n",
-				st.channel_index, st.time_slot, st.transmission.source,
-				st.transmission.destination, st.transmission.spreading_factor);
-	}
 
 	// Calculate and print the efficiency score
-	double efficiency_score = calculate_efficiency_score(
-			scheduled_transmissions, num_scheduled_transmissions);
-	//printf("Efficiency Score:", efficiency_score);
+	double efficiency_score = calculate_efficiency_score(scheduled_transmissions, num_scheduled_transmissions);
+
 
 	// Create efficiency score payload
-	uint8_t *efficiency_score_payload = create_efficiency_score_payload(efficiency_score);
-	if(efficiency_score_payload == NULL) {
-	    printf("Failed to create efficiency score payload!\n");
-	    // handle error...
-	} else {
-	    printf("Efficiency score payload created successfully.\n");
-	    // use payload...
-	    free(efficiency_score_payload); // remember to free the allocated memory when you are done
-	}
+	//uint8_t *efficiency_score_payload = create_efficiency_score_payload(efficiency_score);
 
+	/*
 	// Create a single scheduled transmission payload
 	unsigned char single_payload[sizeof(ScheduledTransmissionPayload)];
 	create_scheduled_transmission_payload(&scheduled_transmissions[0], single_payload);
@@ -243,20 +273,23 @@ int main(void)
 	PayloadFragment *fragments;
 	int num_fragments;
 	fragment_payload(multiple_payload, sizeof(multiple_payload), SCHEDULED_TRANSMISSIONS_PACKET_TYPE, &fragments, &num_fragments);
-	if(fragments == NULL) {
-	    printf("Failed to fragment payload!\n");
-	    // handle error...
-	} else {
-	    printf("Payload was successfully fragmented into %d fragments.\n", num_fragments);
-	    // use fragments...
-	    free(fragments); // remember to free the allocated memory when you are done
-	}
+	*/
+
 	double scores[num_known_dominant_nodes];
 
 	multicast_and_receive_efficiency_scores(&myLoRa, &routing_table, efficiency_score, known_dominants, num_known_dominant_nodes, scores );
+
+
+	send_schedule_to_most_efficient_node(&myLoRa, &routing_table, scheduled_transmissions, num_scheduled_transmissions, known_dominants, scores, num_known_dominant_nodes);
+
+	relay_scheduled_transmissions(&myLoRa, &routing_table, scheduled_transmissions, &num_scheduled_transmissions, num_known_dominant_nodes);
+
+
 	// Clean up
 	free(transmissions);
 	free(scheduled_transmissions);
+
+
   	/* USER CODE END 2 */
 
     /* Infinite loop */

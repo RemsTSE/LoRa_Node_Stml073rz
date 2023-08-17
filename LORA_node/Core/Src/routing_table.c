@@ -86,3 +86,13 @@ void list_dominant_nodes(routing_table_t* table) {
         printf("%d\n", dominant_nodes[i]);
     }
 }
+
+int get_spreading_factor_for_node(routing_table_t *routing_table, int node_id) {
+    for (int i = 0; i < routing_table->num_entries; i++) {
+        if (routing_table->entries[i].dest_node_id == node_id) {
+            return routing_table->entries[i].sf;
+        }
+    }
+    return -1; // Node not found
+}
+
