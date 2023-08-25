@@ -136,15 +136,15 @@ int main(void)
   	LoRa_init(&myLoRa);
 
   	// START CONTINUOUS RECEIVING -----------------------------------
-  	LoRa_startReceiving(&myLoRa);
+  	//LoRa_startReceiving(&myLoRa);
   	//---------------------------------------------------------------
 
-	int num_channels = 3;
+
 
 	routing_entry_t entries[5];
 	entries[0].dest_node_id = 1;
 	entries[0].dominant_dest = false;
-	entries[0].next_hop_id = 6;
+	entries[0].next_hop_id = 4;
 	entries[0].cost = 1;
 	entries[0].sf = 7;
 
@@ -172,7 +172,7 @@ int main(void)
 	entries[4].cost = 5;
 	entries[4].sf = 11;
 
-	/*
+  	/*
 	routing_entry_t entries[5];
 	entries[0].dest_node_id = 1;
 	entries[0].dominant_dest = false;
@@ -203,8 +203,8 @@ int main(void)
 	entries[4].next_hop_id = 5; // Direct route to 5
 	entries[4].cost = 1; // Assuming direct connection
 	entries[4].sf = 11;
-	*/
 
+	*/
 
 	routing_table_t routing_table;
 	routing_table.current_node_id = 6;
@@ -231,21 +231,28 @@ int main(void)
 	// Create the channel list
 	int* known_dominants = NULL;
 	int num_known_dominant_nodes = 0;
-	Channel **channel_list = (Channel **)malloc(num_channels * sizeof(Channel *));
-	for(int i = 0; i < num_channels; i++) {
-	    channel_list[i] = (Channel *)malloc(sizeof(Channel));
-	}
-	known_dominants=get_known_dominant_nodes(&routing_table, &num_known_dominant_nodes);
-	// Initialization code for channel_list here (or via separate function) ...
-	create_channels_list(transmissions, num_transmissions,
-	 routing_table.current_node_id, known_dominants, num_known_dominant_nodes,
-	 channel_list, &num_channels);
+
+	// Get the known dominant nodes
+	known_dominants = get_known_dominant_nodes(&routing_table, &num_known_dominant_nodes);
+
+
+	int num_channels = 3;
+	Channel *channel_list = NULL;
+
+
+	// Initialize channels based on the transmissions and known dominants
+	create_channels_list(transmissions, num_transmissions, routing_table.current_node_id, known_dominants, num_known_dominant_nodes, &channel_list, &num_channels);
+
+	free(transmissions);
 	// Call the scheduling function
 	// Initialize scheduled_transmissions
-	ScheduledTransmission *scheduled_transmissions = (ScheduledTransmission *)malloc(sizeof(ScheduledTransmission));
+	int max_schedule_size = 20;
+	ScheduledTransmission *scheduled_transmissions = NULL;
+	scheduled_transmissions = (ScheduledTransmission *) malloc(max_schedule_size * sizeof(ScheduledTransmission));
+
 
 	int num_scheduled_transmissions;
-	schedule_transmissions(*channel_list, num_channels, &scheduled_transmissions,
+	schedule_transmissions(channel_list, num_channels, scheduled_transmissions,
 			&num_scheduled_transmissions);
 
 
@@ -254,9 +261,9 @@ int main(void)
 
 
 	// Create efficiency score payload
-	//uint8_t *efficiency_score_payload = create_efficiency_score_payload(efficiency_score);
+	uint8_t *efficiency_score_payload = create_efficiency_score_payload(efficiency_score);
 
-	/*
+
 	// Create a single scheduled transmission payload
 	unsigned char single_payload[sizeof(ScheduledTransmissionPayload)];
 	create_scheduled_transmission_payload(&scheduled_transmissions[0], single_payload);
@@ -273,9 +280,11 @@ int main(void)
 	PayloadFragment *fragments;
 	int num_fragments;
 	fragment_payload(multiple_payload, sizeof(multiple_payload), SCHEDULED_TRANSMISSIONS_PACKET_TYPE, &fragments, &num_fragments);
-	*/
+
 
 	double scores[num_known_dominant_nodes];
+
+
 
 	multicast_and_receive_efficiency_scores(&myLoRa, &routing_table, efficiency_score, known_dominants, num_known_dominant_nodes, scores );
 

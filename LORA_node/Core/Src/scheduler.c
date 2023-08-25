@@ -194,7 +194,7 @@ memcpy(channels_known_dominants[index].transmissions[channels_known_dominants[in
  *
  */
 
-
+/*
 void create_channels_list(Transmission *transmissions, int num_transmissions,
 		int current_node_id, int *known_dominants, int num_known_dominants,
 		Channel **channels_list, int *num_channels) {
@@ -338,6 +338,80 @@ void create_channels_list(Transmission *transmissions, int num_transmissions,
 		(*channels_list)[i + 2] = channels_known_dominants[i];
 	}
 }
+*/
+
+void add_transmission_to_channel(Channel* channel, Transmission* transmission) {
+    channel->size++;
+    channel->transmissions = realloc(channel->transmissions, sizeof(Transmission*) * channel->size);
+
+    if (!channel->transmissions) {
+        // Handle memory allocation error
+        exit(1);  // or return an error code, based on your application's needs
+    }
+
+    channel->transmissions[channel->size - 1] = malloc(sizeof(Transmission));
+    memcpy(channel->transmissions[channel->size - 1], transmission, sizeof(Transmission));
+}
+
+void create_channels_list(Transmission *transmissions, int num_transmissions,
+		int current_node_id, int *known_dominants, int num_known_dominants,
+		Channel **channels_list, int *num_channels) {
+	// Sort the transmissions by SF in descending order
+	sort_transmissions_by_spreading_factor(transmissions, num_transmissions);
+
+	// Initialize the list of channels for the current node
+	*channels_list = (Channel*) malloc(sizeof(Channel) * (num_known_dominants + 2));
+	*num_channels = num_known_dominants + 2;
+
+	Channel channel_self = {NULL, 0};
+	Channel channel_no_dominant = {NULL, 0};
+
+	// Initialize the channels for transmissions involving known dominator nodes
+	Channel *channels_known_dominants = (Channel*) malloc(sizeof(Channel) * num_known_dominants);
+	for (int i = 0; i < num_known_dominants; i++) {
+		channels_known_dominants[i].transmissions = NULL;
+		channels_known_dominants[i].size = 0;
+	}
+
+	// For each transmission
+	for (int i = 0; i < num_transmissions; i++) {
+		Transmission* transmission = &transmissions[i];
+
+		int source_in_known = is_id_in_known_dominants(known_dominants, num_known_dominants, transmission->source);
+		int dest_in_known = is_id_in_known_dominants(known_dominants, num_known_dominants, transmission->destination);
+
+		// If 2 dominant neighbor nodes other than itself are involved
+		if (source_in_known && dest_in_known) {
+			int index = (transmission->source < transmission->destination)
+			            ? get_index_in_known_dominants(known_dominants, num_known_dominants, transmission->source)
+			            : get_index_in_known_dominants(known_dominants, num_known_dominants, transmission->destination);
+			add_transmission_to_channel(&channels_known_dominants[index], transmission);
+		}
+		// If the transmission involves the current and another node
+		else if (transmission->source == current_node_id || transmission->destination == current_node_id) {
+			add_transmission_to_channel(&channel_self, transmission);
+		}
+		// If the transmission involves a dominant node and a classic node
+		else if ((source_in_known && !dest_in_known) || (!source_in_known && dest_in_known)) {
+			int index = source_in_known
+			            ? get_index_in_known_dominants(known_dominants, num_known_dominants, transmission->source)
+			            : get_index_in_known_dominants(known_dominants, num_known_dominants, transmission->destination);
+			add_transmission_to_channel(&channels_known_dominants[index], transmission);
+		}
+		// If the transmission doesn't involve any dominant nodes
+		else {
+			add_transmission_to_channel(&channel_no_dominant, transmission);
+		}
+	}
+
+	// Add the channels to the list of channels
+	(*channels_list)[0] = channel_self;
+	(*channels_list)[1] = channel_no_dominant;
+	memcpy(*channels_list + 2, channels_known_dominants, sizeof(Channel) * num_known_dominants);
+
+	// Free memory for channels_known_dominants as its data has been transferred
+	free(channels_known_dominants);
+}
 
 
 
@@ -392,10 +466,11 @@ bool check_collision(ScheduledTransmission *scheduled_transmissions, int num_sch
 
 
 
-void schedule_transmissions(Channel *channel_list, int num_channels, ScheduledTransmission **scheduled_transmissions, int *num_scheduled_transmissions) {
+void schedule_transmissions(Channel *channel_list, int num_channels, ScheduledTransmission *scheduled_transmissions, int *num_scheduled_transmissions) {
     // Initialize the schedule
-    int max_schedule_size = 100; // Arbitrarily chosen, can be set to any reasonable value
-    *scheduled_transmissions = (ScheduledTransmission *) malloc(sizeof(ScheduledTransmission) * max_schedule_size);
+	int max_schedule_size = 40;
+    //*scheduled_transmissions = (ScheduledTransmission *) malloc(max_schedule_size * sizeof(ScheduledTransmission));
+    //*scheduled_transmissions = (ScheduledTransmission *) calloc(max_schedule_size, sizeof(ScheduledTransmission));
     *num_scheduled_transmissions = 0;
 
     // Initialize the next available time slot for each channel
@@ -418,7 +493,7 @@ void schedule_transmissions(Channel *channel_list, int num_channels, ScheduledTr
             char destination = transmission->destination;
 
             // Check if the transmission can be added to the schedule
-            while (check_collision(*scheduled_transmissions, *num_scheduled_transmissions, next_available_slot[channel_index], num_time_slots, source, destination, -1)) {
+            while (check_collision(scheduled_transmissions, *num_scheduled_transmissions, next_available_slot[channel_index], num_time_slots, source, destination, -1)) {
                 next_available_slot[channel_index] += 1;
             }
 
@@ -429,13 +504,22 @@ void schedule_transmissions(Channel *channel_list, int num_channels, ScheduledTr
             new_scheduled_transmission.transmission = *transmission;
 
             // Reallocate memory if needed
+
             if (*num_scheduled_transmissions >= max_schedule_size) {
                 max_schedule_size *= 2;
-                *scheduled_transmissions = realloc(*scheduled_transmissions, sizeof(ScheduledTransmission) * max_schedule_size);
+                scheduled_transmissions = realloc(scheduled_transmissions, sizeof(ScheduledTransmission) * max_schedule_size);
             }
 
             // Add the new scheduled transmission to the array
-            (*scheduled_transmissions)[*num_scheduled_transmissions] = new_scheduled_transmission;
+            /*
+            (*scheduled_transmissions)[*num_scheduled_transmissions].channel_index = new_scheduled_transmission.channel_index;
+            (*scheduled_transmissions)[*num_scheduled_transmissions].time_slot = new_scheduled_transmission.time_slot;
+            (*scheduled_transmissions)[*num_scheduled_transmissions].transmission.source = new_scheduled_transmission.transmission.source;
+            (*scheduled_transmissions)[*num_scheduled_transmissions].transmission.destination = new_scheduled_transmission.transmission.destination;
+            (*scheduled_transmissions)[*num_scheduled_transmissions].transmission.spreading_factor = new_scheduled_transmission.transmission.spreading_factor;
+            */
+            (scheduled_transmissions)[*num_scheduled_transmissions] = new_scheduled_transmission;
+
             (*num_scheduled_transmissions)++;
 
             // Update the next available time slot for the channel
@@ -520,7 +604,12 @@ double calculate_efficiency_score(ScheduledTransmission *scheduled_transmissions
 
     // Keep track of total channels used
     int total_channels_used = 0;
-    int channel_counter[MAX_CHANNELS] = {0};
+    //int channel_counter[MAX_CHANNELS] = {0};
+    int channel_counter[MAX_CHANNELS];
+    for (int i = 0; i < MAX_CHANNELS; i++) {
+        channel_counter[i] = 0;
+    }
+
 
     // Iterate through each scheduled transmission
     for (int i = 0; i < num_scheduled_transmissions; i++) {
