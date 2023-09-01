@@ -4,6 +4,9 @@ Python simulation tool : Scheduling_test.ipynb
 
 C implementation : mostly in "scheduler" "routing_table" "payload"
 
+How to run : clone the project or download the archive. Open STM32CubeIDE, setup your environment then File -> Import -> Import from archive
+Make sure you select the right board model in the settings, the project should work with stm32 nucleo L0xx models.
+
 
 # Problem Statement:
 
